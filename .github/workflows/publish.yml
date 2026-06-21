@@ -1,0 +1,63 @@
+name: Build, test and publish
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test-pack-publish:
+    runs-on: windows-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore YaraXWrapper.sln
+
+      - name: Build
+        run: dotnet build YaraXWrapper.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test YaraXWrapper.sln --configuration Release --no-build
+
+      - name: Determine package version
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF -like "refs/tags/v*") {
+            $version = $env:GITHUB_REF_NAME.Substring(1)
+          }
+          else {
+            $version = "0.1.0-ci.$env:GITHUB_RUN_NUMBER"
+          }
+
+          "PACKAGE_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "Package version: $version"
+
+      - name: Pack
+        run: dotnet pack src/YaraXWrapper/YaraXWrapper.csproj --configuration Release --no-build --output artifacts /p:PackageVersion=${{ env.PACKAGE_VERSION }}
+
+      - name: NuGet login
+        uses: NuGet/login@v1
+        id: nuget-login
+        with:
+          user: x1m
+
+      - name: Publish NuGet package
+        run: dotnet nuget push artifacts/*.nupkg --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
