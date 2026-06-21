@@ -1,0 +1,38 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>netstandard2.0</TargetFramework>
+        <LangVersion>12.0</LangVersion>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>disable</ImplicitUsings>
+        <PackageId>YaraXWrapper</PackageId>
+        <Title>YaraXWrapper</Title>
+        <Version>0.1.0</Version>
+        <Authors>x1m</Authors>
+        <Description>.NET Standard 2.0 wrapper for the YARA-X C API.</Description>
+        <PackageTags>yara;yara-x;capi;interop;wrapper;dotnet;netstandard</PackageTags>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <RepositoryUrl>https://github.com/xorty-v/YaraXWrapper</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="System.Text.Json" Version="8.0.5"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="..\..\README.md" Pack="true" PackagePath="\"/>
+        <None Include="..\..\LICENSE" Pack="true" PackagePath="\"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="yara_x_capi\1.18.0\yara_x_capi.dll"
+              Pack="true"
+              PackagePath="runtimes\win-x64\native\"
+              CopyToOutputDirectory="PreserveNewest"
+              TargetPath="%(Filename)%(Extension)"/>
+    </ItemGroup>
+
+</Project>
