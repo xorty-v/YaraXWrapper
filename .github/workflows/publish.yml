@@ -71,7 +71,12 @@ jobs:
           Write-Host "Package version: $version"
 
       - name: Pack
-        run: dotnet pack src/YaraXWrapper/YaraXWrapper.csproj --configuration Release --no-build --output artifacts /p:PackageVersion=${{ env.PACKAGE_VERSION }}
+        run: dotnet pack src/YaraXWrapper/YaraXWrapper.csproj --configuration Release --output artifacts /p:PackageVersion=${{ env.PACKAGE_VERSION }}
+
+      - name: List artifacts
+        shell: pwsh
+        run: |
+          Get-ChildItem -Recurse artifacts
 
       - name: NuGet login
         uses: NuGet/login@v1
@@ -80,4 +85,15 @@ jobs:
           user: x1m
 
       - name: Publish NuGet package
-        run: dotnet nuget push artifacts/*.nupkg --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        shell: pwsh
+        run: |
+          $package = Get-ChildItem "artifacts" -Filter "*.nupkg" | Where-Object { $_.Name -notlike "*.symbols.nupkg" } | Select-Object -First 1
+
+          if ($null -eq $package) {
+            throw "No .nupkg file found in artifacts."
+          }
+
+          dotnet nuget push $package.FullName `
+            --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}" `
+            --source "https://api.nuget.org/v3/index.json" `
+            --skip-duplicate
