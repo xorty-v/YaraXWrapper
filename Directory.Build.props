@@ -1,0 +1,10 @@
+<Project>
+
+  <PropertyGroup>
+    <!-- Version of the bundled YARA-X C API DLL (yara_x_capi.dll, win-x64). -->
+    <!-- Update this when upgrading YARA-X, then update the DLL under yara_x_capi/<version>/ -->
+    <!-- and adjust the package version in YaraXWrapper.csproj accordingly. -->
+    <YaraXCapiVersion>1.18.0</YaraXCapiVersion>
+  </PropertyGroup>
+
+</Project>

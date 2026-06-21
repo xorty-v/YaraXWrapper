@@ -4,8 +4,7 @@ on:
   push:
     branches:
       - main
-    tags:
-      - "v*"
+      - dev
   workflow_dispatch:
 
 permissions:
@@ -31,11 +30,14 @@ jobs:
       - name: Download YARA-X C API
         shell: pwsh
         run: |
-          $targetDir = "src/YaraXWrapper/yara_x_capi/1.18.0"
+          $ver = ([xml](Get-Content Directory.Build.props)).Project.PropertyGroup.YaraXCapiVersion
+          if (-not $ver) { throw "YaraXCapiVersion not found in Directory.Build.props" }
+
+          $targetDir = "src/YaraXWrapper/yara_x_capi/$ver"
           New-Item -ItemType Directory -Force -Path $targetDir
 
           Invoke-WebRequest `
-            -Uri "https://github.com/VirusTotal/yara-x/releases/download/v1.18.0/yara-x-capi-v1.18.0-x86_64-pc-windows-msvc.zip" `
+            -Uri "https://github.com/VirusTotal/yara-x/releases/download/v$ver/yara-x-capi-v$ver-x86_64-pc-windows-msvc.zip" `
             -OutFile "yara-x-capi.zip"
 
           Expand-Archive "yara-x-capi.zip" -DestinationPath "yara-x-capi"
@@ -58,33 +60,31 @@ jobs:
         run: dotnet test YaraXWrapper.sln --configuration Release --no-build
 
       - name: Determine package version
+        if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
         shell: pwsh
         run: |
-          if ($env:GITHUB_REF -like "refs/tags/v*") {
-            $version = $env:GITHUB_REF_NAME.Substring(1)
-          }
-          else {
-            $version = "0.1.0-ci.$env:GITHUB_RUN_NUMBER"
-          }
-
+          $version = ([xml](Get-Content src/YaraXWrapper/YaraXWrapper.csproj)).Project.PropertyGroup.Version
           "PACKAGE_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
           Write-Host "Package version: $version"
 
       - name: Pack
+        if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
         run: dotnet pack src/YaraXWrapper/YaraXWrapper.csproj --configuration Release --output artifacts /p:PackageVersion=${{ env.PACKAGE_VERSION }}
 
       - name: List artifacts
+        if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
         shell: pwsh
-        run: |
-          Get-ChildItem -Recurse artifacts
+        run: Get-ChildItem -Recurse artifacts
 
       - name: NuGet login
+        if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
         uses: NuGet/login@v1
         id: nuget-login
         with:
           user: x1m
 
       - name: Publish NuGet package
+        if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
         shell: pwsh
         run: |
           $package = Get-ChildItem "artifacts" -Filter "*.nupkg" | Where-Object { $_.Name -notlike "*.symbols.nupkg" } | Select-Object -First 1

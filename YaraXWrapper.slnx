@@ -1,0 +1,23 @@
+<Solution>
+
+    <Configurations>
+        <Platform Name="Any CPU"/>
+        <Platform Name="x64"/>
+        <Platform Name="x86"/>
+    </Configurations>
+
+    <Folder Name="/Solution Items/">
+        <File Path="Directory.Build.props"/>
+        <File Path=".github\workflows\publish.yml"/>
+    </Folder>
+
+    <Folder Name="/src/">
+        <Project Path="src/YaraXWrapper/YaraXWrapper.csproj"/>
+    </Folder>
+
+    <Folder Name="/tests/">
+        <Project Path="tests/YaraXWrapper.IntegrationTests/YaraXWrapper.IntegrationTests.csproj"/>
+    </Folder>
+
+    <Project Path="ConsoleApp1/ConsoleApp1.csproj"/>
+</Solution>
