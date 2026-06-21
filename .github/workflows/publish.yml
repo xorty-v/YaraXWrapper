@@ -28,6 +28,26 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
+      - name: Download YARA-X C API
+        shell: pwsh
+        run: |
+          $targetDir = "src/YaraXWrapper/yara_x_capi/1.18.0"
+          New-Item -ItemType Directory -Force -Path $targetDir
+
+          Invoke-WebRequest `
+            -Uri "https://github.com/VirusTotal/yara-x/releases/download/v1.18.0/yara-x-capi-v1.18.0-x86_64-pc-windows-msvc.zip" `
+            -OutFile "yara-x-capi.zip"
+
+          Expand-Archive "yara-x-capi.zip" -DestinationPath "yara-x-capi"
+
+          $dll = Get-ChildItem "yara-x-capi" -Recurse -Filter "yara_x_capi.dll" | Select-Object -First 1
+
+          if ($null -eq $dll) {
+            throw "yara_x_capi.dll was not found in downloaded archive."
+          }
+
+          Copy-Item $dll.FullName "$targetDir/yara_x_capi.dll"
+
       - name: Restore
         run: dotnet restore YaraXWrapper.sln
 
