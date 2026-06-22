@@ -10,6 +10,15 @@ public sealed class Compiler : IDisposable
 {
     private IntPtr _compiler = IntPtr.Zero;
 
+    static Compiler()
+    {
+        if (!Environment.Is64BitProcess)
+            throw new PlatformNotSupportedException(
+                "YaraXWrapper requires a 64-bit process. " +
+                "Set <PlatformTarget>x64</PlatformTarget> in the consuming project, " +
+                "or uncheck 'Prefer 32-bit' in project properties.");
+    }
+
     public Compiler(CompileFlags flags = CompileFlags.None)
     {
         YRX_RESULT result = YaraXNative.yrx_compiler_create((uint)flags, out _compiler);
@@ -30,14 +39,17 @@ public sealed class Compiler : IDisposable
         }
 
         string directory = Path.GetDirectoryName(fullPath) ?? Directory.GetCurrentDirectory();
-        YRX_RESULT includeResult = YaraXNative.yrx_compiler_add_include_dir(_compiler, directory);
+        using var dir = new Utf8NativeStr(directory);
+        YRX_RESULT includeResult = YaraXNative.yrx_compiler_add_include_dir(_compiler, dir);
         if (includeResult != YRX_RESULT.YRX_SUCCESS)
         {
             throw new YrxException($"AddRuleFile: failed to register include directory '{directory}': {includeResult}");
         }
 
         string source = File.ReadAllText(fullPath, Encoding.UTF8);
-        YRX_RESULT result = YaraXNative.yrx_compiler_add_source_with_origin(_compiler, source, fullPath);
+        using var src = new Utf8NativeStr(source);
+        using var origin = new Utf8NativeStr(fullPath);
+        YRX_RESULT result = YaraXNative.yrx_compiler_add_source_with_origin(_compiler, src, origin);
 
         if (result != YRX_RESULT.YRX_SUCCESS && result != YRX_RESULT.YRX_SYNTAX_ERROR)
         {
@@ -49,7 +61,8 @@ public sealed class Compiler : IDisposable
     {
         if (source == null) throw new ArgumentNullException(nameof(source));
 
-        YRX_RESULT result = YaraXNative.yrx_compiler_add_source(_compiler, source);
+        using var src = new Utf8NativeStr(source);
+        YRX_RESULT result = YaraXNative.yrx_compiler_add_source(_compiler, src);
 
         if (result != YRX_RESULT.YRX_SUCCESS && result != YRX_RESULT.YRX_SYNTAX_ERROR)
         {
@@ -59,7 +72,8 @@ public sealed class Compiler : IDisposable
 
     public void AddIncludeDir(string directory)
     {
-        YRX_RESULT result = YaraXNative.yrx_compiler_add_include_dir(_compiler, directory);
+        using var dir = new Utf8NativeStr(directory);
+        YRX_RESULT result = YaraXNative.yrx_compiler_add_include_dir(_compiler, dir);
         if (result != YRX_RESULT.YRX_SUCCESS)
         {
             throw new YrxException($"AddIncludeDir failed: {result}");
@@ -68,7 +82,8 @@ public sealed class Compiler : IDisposable
 
     public void IgnoreModule(string module)
     {
-        YRX_RESULT result = YaraXNative.yrx_compiler_ignore_module(_compiler, module);
+        using var mod = new Utf8NativeStr(module);
+        YRX_RESULT result = YaraXNative.yrx_compiler_ignore_module(_compiler, mod);
         if (result != YRX_RESULT.YRX_SUCCESS)
         {
             throw new YrxException($"IgnoreModule failed: {result}");
@@ -77,7 +92,10 @@ public sealed class Compiler : IDisposable
 
     public void BanModule(string module, string errorTitle, string errorMessage)
     {
-        YRX_RESULT result = YaraXNative.yrx_compiler_ban_module(_compiler, module, errorTitle, errorMessage);
+        using var mod = new Utf8NativeStr(module);
+        using var title = new Utf8NativeStr(errorTitle);
+        using var msg = new Utf8NativeStr(errorMessage);
+        YRX_RESULT result = YaraXNative.yrx_compiler_ban_module(_compiler, mod, title, msg);
         if (result != YRX_RESULT.YRX_SUCCESS)
         {
             throw new YrxException($"BanModule failed: {result}");
@@ -86,7 +104,8 @@ public sealed class Compiler : IDisposable
 
     public void NewNamespace(string name)
     {
-        YRX_RESULT result = YaraXNative.yrx_compiler_new_namespace(_compiler, name);
+        using var ns = new Utf8NativeStr(name);
+        YRX_RESULT result = YaraXNative.yrx_compiler_new_namespace(_compiler, ns);
         if (result != YRX_RESULT.YRX_SUCCESS)
         {
             throw new YrxException($"NewNamespace failed: {result}");
@@ -95,14 +114,26 @@ public sealed class Compiler : IDisposable
 
     public void DefineGlobal<T>(string identifier, T value)
     {
-        YRX_RESULT result = value switch
+        using var ident = new Utf8NativeStr(identifier);
+        YRX_RESULT result = YRX_RESULT.YRX_SUCCESS;
+        switch (value)
         {
-            string s => YaraXNative.yrx_compiler_define_global_str(_compiler, identifier, s),
-            bool b => YaraXNative.yrx_compiler_define_global_bool(_compiler, identifier, b),
-            int i => YaraXNative.yrx_compiler_define_global_int(_compiler, identifier, i),
-            double d => YaraXNative.yrx_compiler_define_global_float(_compiler, identifier, d),
-            _ => throw new NotSupportedException($"Unsupported global type: {typeof(T).Name}"),
-        };
+            case string s:
+                using (var val = new Utf8NativeStr(s))
+                    result = YaraXNative.yrx_compiler_define_global_str(_compiler, ident, val);
+                break;
+            case bool b:
+                result = YaraXNative.yrx_compiler_define_global_bool(_compiler, ident, b);
+                break;
+            case int i:
+                result = YaraXNative.yrx_compiler_define_global_int(_compiler, ident, i);
+                break;
+            case double d:
+                result = YaraXNative.yrx_compiler_define_global_float(_compiler, ident, d);
+                break;
+            default:
+                throw new NotSupportedException($"Unsupported global type: {typeof(T).Name}");
+        }
 
         if (result != YRX_RESULT.YRX_SUCCESS)
         {

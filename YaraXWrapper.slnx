@@ -18,6 +18,4 @@
     <Folder Name="/tests/">
         <Project Path="tests/YaraXWrapper.IntegrationTests/YaraXWrapper.IntegrationTests.csproj"/>
     </Folder>
-
-    <Project Path="ConsoleApp1/ConsoleApp1.csproj"/>
 </Solution>

@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace YaraXWrapper;
 
@@ -75,6 +76,36 @@ internal struct YRX_METADATA
     public YRX_METADATA_VALUE value;
 }
 
+// Allocates a null-terminated UTF-8 byte sequence on the unmanaged heap.
+// The default [DllImport] CharSet.Ansi marshaling converts .NET strings through the
+// system ANSI code page before passing to native code, producing non-UTF-8 bytes for
+// characters above ASCII (e.g. U+2019 → 0x92 in Windows-1252). The Rust C API
+// validates all const char* arguments as UTF-8 and rejects ANSI-encoded bytes.
+// Use this class with `using var` to ensure the memory is freed after the call.
+internal sealed class Utf8NativeStr : IDisposable
+{
+    private IntPtr _ptr;
+
+    internal Utf8NativeStr(string s)
+    {
+        byte[] bytes = Encoding.UTF8.GetBytes(s ?? string.Empty);
+        _ptr = Marshal.AllocHGlobal(bytes.Length + 1);
+        Marshal.Copy(bytes, 0, _ptr, bytes.Length);
+        Marshal.WriteByte(_ptr, bytes.Length, 0);
+    }
+
+    public static implicit operator IntPtr(Utf8NativeStr s) => s._ptr;
+
+    public void Dispose()
+    {
+        if (_ptr != IntPtr.Zero)
+        {
+            Marshal.FreeHGlobal(_ptr);
+            _ptr = IntPtr.Zero;
+        }
+    }
+}
+
 internal static class YaraXNative
 {
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -121,39 +152,39 @@ internal static class YaraXNative
     internal static extern IntPtr yrx_compiler_build(IntPtr compiler);
 
     [DllImport("yara_x_capi", CallingConvention = CallingConvention.Cdecl)]
-    internal static extern YRX_RESULT yrx_compiler_add_source(IntPtr compiler, string src);
+    internal static extern YRX_RESULT yrx_compiler_add_source(IntPtr compiler, IntPtr src);
 
     [DllImport("yara_x_capi", CallingConvention = CallingConvention.Cdecl)]
-    internal static extern YRX_RESULT yrx_compiler_add_source_with_origin(IntPtr compiler, string src, string origin);
+    internal static extern YRX_RESULT yrx_compiler_add_source_with_origin(IntPtr compiler, IntPtr src, IntPtr origin);
 
     [DllImport("yara_x_capi", CallingConvention = CallingConvention.Cdecl)]
-    internal static extern YRX_RESULT yrx_compiler_add_include_dir(IntPtr compiler, string dir);
+    internal static extern YRX_RESULT yrx_compiler_add_include_dir(IntPtr compiler, IntPtr dir);
 
     [DllImport("yara_x_capi", CallingConvention = CallingConvention.Cdecl)]
-    internal static extern YRX_RESULT yrx_compiler_ignore_module(IntPtr compiler, string module);
+    internal static extern YRX_RESULT yrx_compiler_ignore_module(IntPtr compiler, IntPtr module);
 
     [DllImport("yara_x_capi", CallingConvention = CallingConvention.Cdecl)]
     internal static extern YRX_RESULT yrx_compiler_ban_module(
-        IntPtr compiler, string module, string errorTitle, string errorMsg);
+        IntPtr compiler, IntPtr module, IntPtr errorTitle, IntPtr errorMsg);
 
     [DllImport("yara_x_capi", CallingConvention = CallingConvention.Cdecl)]
-    internal static extern YRX_RESULT yrx_compiler_new_namespace(IntPtr compiler, string name);
+    internal static extern YRX_RESULT yrx_compiler_new_namespace(IntPtr compiler, IntPtr name);
 
     [DllImport("yara_x_capi", CallingConvention = CallingConvention.Cdecl)]
     internal static extern YRX_RESULT yrx_compiler_max_warnings(IntPtr compiler, UIntPtr n);
 
     [DllImport("yara_x_capi", CallingConvention = CallingConvention.Cdecl)]
-    internal static extern YRX_RESULT yrx_compiler_define_global_str(IntPtr compiler, string identifier, string value);
+    internal static extern YRX_RESULT yrx_compiler_define_global_str(IntPtr compiler, IntPtr identifier, IntPtr value);
 
     [DllImport("yara_x_capi", CallingConvention = CallingConvention.Cdecl)]
-    internal static extern YRX_RESULT yrx_compiler_define_global_bool(IntPtr compiler, string identifier, bool value);
+    internal static extern YRX_RESULT yrx_compiler_define_global_bool(IntPtr compiler, IntPtr identifier, bool value);
 
     [DllImport("yara_x_capi", CallingConvention = CallingConvention.Cdecl)]
-    internal static extern YRX_RESULT yrx_compiler_define_global_int(IntPtr compiler, string identifier, long value);
+    internal static extern YRX_RESULT yrx_compiler_define_global_int(IntPtr compiler, IntPtr identifier, long value);
 
     [DllImport("yara_x_capi", CallingConvention = CallingConvention.Cdecl)]
     internal static extern YRX_RESULT yrx_compiler_define_global_float(
-        IntPtr compiler, string identifier, double value);
+        IntPtr compiler, IntPtr identifier, double value);
 
     [DllImport("yara_x_capi", CallingConvention = CallingConvention.Cdecl)]
     internal static extern YRX_RESULT yrx_compiler_errors_json(IntPtr compiler, out IntPtr buf);
@@ -238,7 +269,7 @@ internal static class YaraXNative
     internal static extern YRX_RESULT yrx_scanner_scan(IntPtr scanner, byte[] data, long len);
 
     [DllImport("yara_x_capi", CallingConvention = CallingConvention.Cdecl)]
-    internal static extern YRX_RESULT yrx_scanner_scan_file(IntPtr scanner, string path);
+    internal static extern YRX_RESULT yrx_scanner_scan_file(IntPtr scanner, IntPtr path);
 
     [DllImport("yara_x_capi", CallingConvention = CallingConvention.Cdecl)]
     internal static extern YRX_RESULT yrx_scanner_scan_block(IntPtr scanner, long baseOffset, byte[] data, long len);
@@ -255,21 +286,20 @@ internal static class YaraXNative
 
     [DllImport("yara_x_capi", CallingConvention = CallingConvention.Cdecl)]
     internal static extern YRX_RESULT yrx_scanner_set_module_output(
-        IntPtr scanner, string name, byte[] data, long length);
+        IntPtr scanner, IntPtr name, byte[] data, long length);
 
     [DllImport("yara_x_capi", CallingConvention = CallingConvention.Cdecl)]
-    internal static extern YRX_RESULT
-        yrx_scanner_set_module_data(IntPtr scanner, string name, byte[] data, long length);
+    internal static extern YRX_RESULT yrx_scanner_set_module_data(IntPtr scanner, IntPtr name, byte[] data, long length);
 
     [DllImport("yara_x_capi", CallingConvention = CallingConvention.Cdecl)]
-    internal static extern YRX_RESULT yrx_scanner_set_global_str(IntPtr scanner, string identifier, string value);
+    internal static extern YRX_RESULT yrx_scanner_set_global_str(IntPtr scanner, IntPtr identifier, IntPtr value);
 
     [DllImport("yara_x_capi", CallingConvention = CallingConvention.Cdecl)]
-    internal static extern YRX_RESULT yrx_scanner_set_global_bool(IntPtr scanner, string identifier, bool value);
+    internal static extern YRX_RESULT yrx_scanner_set_global_bool(IntPtr scanner, IntPtr identifier, bool value);
 
     [DllImport("yara_x_capi", CallingConvention = CallingConvention.Cdecl)]
-    internal static extern YRX_RESULT yrx_scanner_set_global_int(IntPtr scanner, string identifier, long value);
+    internal static extern YRX_RESULT yrx_scanner_set_global_int(IntPtr scanner, IntPtr identifier, long value);
 
     [DllImport("yara_x_capi", CallingConvention = CallingConvention.Cdecl)]
-    internal static extern YRX_RESULT yrx_scanner_set_global_float(IntPtr scanner, string identifier, double value);
+    internal static extern YRX_RESULT yrx_scanner_set_global_float(IntPtr scanner, IntPtr identifier, double value);
 }

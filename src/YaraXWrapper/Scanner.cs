@@ -58,7 +58,8 @@ public sealed class Scanner : IDisposable
         }
 
         _currentResults = new List<RuleMatch>();
-        YRX_RESULT result = YaraXNative.yrx_scanner_scan_file(_scanner, filePath);
+        using var path = new Utf8NativeStr(filePath);
+        YRX_RESULT result = YaraXNative.yrx_scanner_scan_file(_scanner, path);
         if (result != YRX_RESULT.YRX_SUCCESS)
         {
             throw new YrxException($"Scan failed: {result}");
@@ -150,7 +151,9 @@ public sealed class Scanner : IDisposable
 
     public void SetGlobal(string identifier, string value)
     {
-        YRX_RESULT result = YaraXNative.yrx_scanner_set_global_str(_scanner, identifier, value);
+        using var ident = new Utf8NativeStr(identifier);
+        using var val = new Utf8NativeStr(value);
+        YRX_RESULT result = YaraXNative.yrx_scanner_set_global_str(_scanner, ident, val);
         if (result != YRX_RESULT.YRX_SUCCESS)
         {
             throw new YrxException($"SetGlobal failed: {result}");
@@ -159,7 +162,8 @@ public sealed class Scanner : IDisposable
 
     public void SetGlobal(string identifier, bool value)
     {
-        YRX_RESULT result = YaraXNative.yrx_scanner_set_global_bool(_scanner, identifier, value);
+        using var ident = new Utf8NativeStr(identifier);
+        YRX_RESULT result = YaraXNative.yrx_scanner_set_global_bool(_scanner, ident, value);
         if (result != YRX_RESULT.YRX_SUCCESS)
         {
             throw new YrxException($"SetGlobal failed: {result}");
@@ -168,7 +172,8 @@ public sealed class Scanner : IDisposable
 
     public void SetGlobal(string identifier, int value)
     {
-        YRX_RESULT result = YaraXNative.yrx_scanner_set_global_int(_scanner, identifier, value);
+        using var ident = new Utf8NativeStr(identifier);
+        YRX_RESULT result = YaraXNative.yrx_scanner_set_global_int(_scanner, ident, value);
         if (result != YRX_RESULT.YRX_SUCCESS)
         {
             throw new YrxException($"SetGlobal failed: {result}");
@@ -177,7 +182,8 @@ public sealed class Scanner : IDisposable
 
     public void SetGlobal(string identifier, double value)
     {
-        YRX_RESULT result = YaraXNative.yrx_scanner_set_global_float(_scanner, identifier, value);
+        using var ident = new Utf8NativeStr(identifier);
+        YRX_RESULT result = YaraXNative.yrx_scanner_set_global_float(_scanner, ident, value);
         if (result != YRX_RESULT.YRX_SUCCESS)
         {
             throw new YrxException($"SetGlobal failed: {result}");
