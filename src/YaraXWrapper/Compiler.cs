@@ -6,6 +6,15 @@ using System.Text.Json;
 
 namespace YaraXWrapper;
 
+/// <summary>
+/// Compiles YARA-X rules from source files or strings into a <see cref="Rules"/> object.
+/// </summary>
+/// <remarks>
+/// <see cref="Compiler"/> is single-use: calling <see cref="Build"/> consumes it.
+/// Do not call any method after <see cref="Build"/> or <see cref="Dispose"/>.
+/// Syntax errors in rule sources do not throw — they are accumulated and returned
+/// in <see cref="CompileResult.Errors"/>.
+/// </remarks>
 public sealed class Compiler : IDisposable
 {
     private IntPtr _compiler = IntPtr.Zero;
@@ -28,6 +37,15 @@ public sealed class Compiler : IDisposable
         }
     }
 
+    /// <summary>
+    /// Reads and compiles all rules from <paramref name="filePath"/>.
+    /// The file's directory is automatically registered as an include search path,
+    /// so <c>include</c> directives within the file resolve relative to it.
+    /// </summary>
+    /// <remarks>
+    /// Syntax errors do not throw. They are accumulated and available in
+    /// <see cref="CompileResult.Errors"/> after calling <see cref="Build"/>.
+    /// </remarks>
     public void AddRuleFile(string filePath)
     {
         if (filePath == null) throw new ArgumentNullException(nameof(filePath));
@@ -58,6 +76,10 @@ public sealed class Compiler : IDisposable
         }
     }
 
+    /// <summary>
+    /// Compiles YARA-X rules from a source string.
+    /// Syntax errors are accumulated; they do not throw.
+    /// </summary>
     public void AddRule(string source)
     {
         if (source == null) throw new ArgumentNullException(nameof(source));
@@ -71,6 +93,7 @@ public sealed class Compiler : IDisposable
         }
     }
 
+    /// <summary>Adds a directory to the include search path for resolving <c>include</c> directives.</summary>
     public void AddIncludeDir(string directory)
     {
         if (directory == null) throw new ArgumentNullException(nameof(directory));
@@ -82,6 +105,7 @@ public sealed class Compiler : IDisposable
         }
     }
 
+    /// <summary>Instructs the compiler to silently ignore rules that import an unknown module.</summary>
     public void IgnoreModule(string module)
     {
         using var mod = new Utf8NativeStr(module);
@@ -92,6 +116,7 @@ public sealed class Compiler : IDisposable
         }
     }
 
+    /// <summary>Switches subsequent rule sources into a new namespace.</summary>
     public void SetNamespace(string name)
     {
         using var ns = new Utf8NativeStr(name);
@@ -102,6 +127,14 @@ public sealed class Compiler : IDisposable
         }
     }
 
+    /// <summary>
+    /// Compiles all added rules and returns the result.
+    /// </summary>
+    /// <remarks>
+    /// This call consumes the compiler. Do not use this <see cref="Compiler"/> instance afterward.
+    /// <see cref="CompileResult.Rules"/> is always non-null but may contain zero rules
+    /// if every source had errors.
+    /// </remarks>
     public CompileResult Build()
     {
         CompileError[] errors = ReadDiagnosticsJson(isErrors: true);

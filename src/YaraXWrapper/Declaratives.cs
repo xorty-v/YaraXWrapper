@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 
 namespace YaraXWrapper;
 
+/// <summary>Flags that control compiler behavior. Can be combined.</summary>
 [Flags]
 public enum CompileFlags : uint
 {
@@ -16,6 +17,14 @@ public enum CompileFlags : uint
     DisableIncludes = 32,
 }
 
+/// <summary>
+/// Controls which fields are populated in each <see cref="RuleMatch"/> during a scan.
+/// Use the minimum set needed to reduce per-match allocations.
+/// </summary>
+/// <remarks>
+/// <see cref="Patterns"/> must be included to access <see cref="PatternMatch.Offset"/>
+/// and <see cref="PatternMatch.Length"/>.
+/// </remarks>
 [Flags]
 public enum MatchLoadOptions
 {
@@ -28,13 +37,13 @@ public enum MatchLoadOptions
     All = Metadata | Tags | Patterns | Namespace | Identifier,
 }
 
+/// <summary>Thrown when a native YARA-X operation fails with an unexpected error code.</summary>
 public sealed class YaraXException : Exception
 {
-    public YaraXException(string message) : base(message)
-    {
-    }
+    public YaraXException(string message) : base(message) { }
 }
 
+/// <summary>A compile-time diagnostic (error or warning) produced by the YARA-X compiler.</summary>
 public sealed class CompileError
 {
     [JsonPropertyName("type")]
@@ -53,6 +62,28 @@ public sealed class CompileError
     public Dictionary<string, object?>? ExtensionData { get; set; }
 }
 
+internal sealed class SlowRuleInfo
+{
+    public string Namespace { get; }
+    public string Rule { get; }
+    public double MatchTime { get; }
+    public double EvalTime { get; }
+
+    internal SlowRuleInfo(string ns, string rule, double matchTime, double evalTime)
+    {
+        Namespace = ns;
+        Rule = rule;
+        MatchTime = matchTime;
+        EvalTime = evalTime;
+    }
+}
+
+/// <summary>
+/// The result of <see cref="Compiler.Build"/>.
+/// <see cref="Rules"/> always contains the successfully compiled rules and is never null,
+/// but may have zero rules if every source had errors.
+/// Invalid sources are not silently discarded — they appear in <see cref="Errors"/>.
+/// </summary>
 public readonly struct CompileResult
 {
     public Rules Rules { get; }

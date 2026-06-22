@@ -6,19 +6,32 @@ using System.Text;
 
 namespace YaraXWrapper;
 
+/// <summary>
+/// Scans data against a compiled set of <see cref="Rules"/> and returns matching rules
+/// with their pattern locations.
+/// </summary>
+/// <remarks>
+/// Not thread-safe. For parallel scanning, create one <see cref="Scanner"/> per thread —
+/// multiple scanners can safely share the same <see cref="Rules"/> instance.
+/// The <see cref="Rules"/> passed to the constructor must remain alive for the lifetime of this scanner.
+/// </remarks>
 public sealed class Scanner : IDisposable
 {
     private IntPtr _scanner;
     private readonly MatchLoadOptions _loadOptions;
 
-    // The callback registered with yrx_scanner_on_matching_rule is stored by the native
-    // scanner and called on every match. The delegate MUST be kept alive in a field —
-    // a method-group or lambda passed directly can be collected by the GC between scans.
+    // Stored in a field so the GC does not collect the delegate between scans.
     private readonly YaraXNative.YRX_RULE_CALLBACK _onMatchDelegate;
 
-    // Populated during each scan; replaced (not appended) at the start of every new scan.
+    // Replaced (not appended) at the start of every scan.
     private List<RuleMatch> _currentResults = new();
 
+    /// <summary>Creates a scanner for the given compiled rules.</summary>
+    /// <param name="loadOptions">
+    /// Controls which fields are populated in each <see cref="RuleMatch"/>.
+    /// Include <see cref="MatchLoadOptions.Patterns"/> to receive <see cref="PatternMatch.Offset"/>
+    /// and <see cref="PatternMatch.Length"/> for each match.
+    /// </param>
     public Scanner(Rules rules, MatchLoadOptions loadOptions = MatchLoadOptions.All)
     {
         if (rules == null) throw new ArgumentNullException(nameof(rules));
@@ -41,6 +54,7 @@ public sealed class Scanner : IDisposable
         }
     }
 
+    /// <summary>Aborts the scan if it takes longer than <paramref name="seconds"/> seconds.</summary>
     public void SetTimeout(ulong seconds)
     {
         YRX_RESULT result = YaraXNative.yrx_scanner_set_timeout(_scanner, seconds);
@@ -50,6 +64,7 @@ public sealed class Scanner : IDisposable
         }
     }
 
+    /// <summary>Scans a file and returns all matching rules.</summary>
     public IReadOnlyList<RuleMatch> Scan(string filePath)
     {
         if (!File.Exists(filePath))
@@ -68,6 +83,7 @@ public sealed class Scanner : IDisposable
         return _currentResults;
     }
 
+    /// <summary>Scans a byte array and returns all matching rules.</summary>
     public IReadOnlyList<RuleMatch> Scan(byte[] data)
     {
         if (data == null) throw new ArgumentNullException(nameof(data));
@@ -95,8 +111,7 @@ public sealed class Scanner : IDisposable
 
     private void OnMatchCallback(IntPtr rule, IntPtr userData)
     {
-        RuleMatch match = BuildRuleMatch(rule);
-        _currentResults.Add(match);
+        _currentResults.Add(BuildRuleMatch(rule));
     }
 
     private RuleMatch BuildRuleMatch(IntPtr rule)
@@ -108,29 +123,19 @@ public sealed class Scanner : IDisposable
         var patterns = new List<PatternMatch>();
 
         if ((_loadOptions & MatchLoadOptions.Identifier) != 0)
-        {
             identifier = ReadRuleIdentifier(rule);
-        }
 
         if ((_loadOptions & MatchLoadOptions.Namespace) != 0)
-        {
             ns = ReadRuleNamespace(rule);
-        }
 
         if ((_loadOptions & MatchLoadOptions.Tags) != 0)
-        {
             ReadRuleTags(rule, tags);
-        }
 
         if ((_loadOptions & MatchLoadOptions.Metadata) != 0)
-        {
             ReadRuleMetadata(rule, metadata);
-        }
 
         if ((_loadOptions & MatchLoadOptions.Patterns) != 0)
-        {
             ReadRulePatterns(rule, patterns);
-        }
 
         return new RuleMatch(identifier, ns, tags, metadata, patterns);
     }
@@ -140,9 +145,7 @@ public sealed class Scanner : IDisposable
         YRX_RESULT result = YaraXNative.yrx_rule_identifier(rule, out IntPtr ptr, out UIntPtr len);
         int length = (int)(ulong)len;
         if (result != YRX_RESULT.YRX_SUCCESS || length == 0)
-        {
             return string.Empty;
-        }
 
         return PtrToUtf8String(ptr, length);
     }
@@ -152,9 +155,7 @@ public sealed class Scanner : IDisposable
         YRX_RESULT result = YaraXNative.yrx_rule_namespace(rule, out IntPtr ptr, out UIntPtr len);
         int length = (int)(ulong)len;
         if (result != YRX_RESULT.YRX_SUCCESS || length == 0)
-        {
             return string.Empty;
-        }
 
         return PtrToUtf8String(ptr, length);
     }
@@ -175,18 +176,10 @@ public sealed class Scanner : IDisposable
 
             switch (data.value_type)
             {
-                case YRX_METADATA_VALUE_TYPE.YRX_I64:
-                    metadata[key] = data.value.i64;
-                    break;
-                case YRX_METADATA_VALUE_TYPE.YRX_F64:
-                    metadata[key] = data.value.f64;
-                    break;
-                case YRX_METADATA_VALUE_TYPE.YRX_BOOLEAN:
-                    metadata[key] = data.value.boolean;
-                    break;
-                case YRX_METADATA_VALUE_TYPE.YRX_STRING:
-                    metadata[key] = PtrToUtf8String(data.value.str);
-                    break;
+                case YRX_METADATA_VALUE_TYPE.YRX_I64: metadata[key] = data.value.i64; break;
+                case YRX_METADATA_VALUE_TYPE.YRX_F64: metadata[key] = data.value.f64; break;
+                case YRX_METADATA_VALUE_TYPE.YRX_BOOLEAN: metadata[key] = data.value.boolean; break;
+                case YRX_METADATA_VALUE_TYPE.YRX_STRING: metadata[key] = PtrToUtf8String(data.value.str); break;
                 case YRX_METADATA_VALUE_TYPE.YRX_BYTES:
                     YRX_METADATA_BYTES raw = data.value.bytes;
                     int byteLen = (int)(ulong)raw.length;

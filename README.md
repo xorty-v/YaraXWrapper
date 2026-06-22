@@ -1,92 +1,86 @@
 # YaraXWrapper
 
-.NET Standard 2.0 wrapper for the [YARA-X](https://github.com/VirusTotal/yara-x) C API (`yara_x_capi` 1.18.0).
+.NET Standard 2.0 wrapper for the [YARA-X](https://github.com/VirusTotal/yara-x) C API (bundled: `yara_x_capi` 1.18.0).
+
+## Platform
+
+**Windows x64 only.** The package includes a prebuilt `yara_x_capi.dll` for `win-x64`.
+
+The consuming process must run as 64-bit. In the consuming project set:
+
+```xml
+<PlatformTarget>x64</PlatformTarget>
+```
+
+Running in a 32-bit process throws `PlatformNotSupportedException` on first use.
+
+## Install
+
+```
+dotnet add package YaraXWrapper
+```
 
 ## Quick start
 
 ```csharp
 using YaraXWrapper;
 
-// Compile
 using var compiler = new Compiler();
-compiler.AddRuleFile(@"rules\index.yar");   // plain .yar or index file with includes
-CompileResult compiled = compiler.Build();
+compiler.AddRuleFile(@"rules\malware.yar");   // plain .yar or index file with includes
 
-if (compiled.Errors.Count > 0)
-{
-    foreach (var err in compiled.Errors)
-        Console.WriteLine($"[{err.Code}] {err.Title}");
-    return;
-}
+CompileResult result = compiler.Build();
 
-// Scan
-using var rules   = compiled.Rules;
-using var scanner = new Scanner(rules, MatchLoadOptions.Identifier | MatchLoadOptions.Patterns);
+// Invalid rules are not silently discarded — they appear in Errors.
+foreach (CompileError err in result.Errors)
+    Console.WriteLine($"[{err.Code}] {err.Title}: {err.Text}");
 
-foreach (RuleMatch match in scanner.Scan(@"C:\target.exe"))
+// MatchLoadOptions.Patterns is required to get offset and length per match.
+using var scanner = new Scanner(result.Rules, MatchLoadOptions.Identifier | MatchLoadOptions.Patterns);
+
+foreach (RuleMatch match in scanner.Scan(@"C:\sample.exe"))
 {
     Console.WriteLine($"Rule: {match.Identifier}");
     foreach (PatternMatch pm in match.Patterns)
-        Console.WriteLine($"  {pm.Identifier}  offset={pm.Offset}  length={pm.Length}");
+        Console.WriteLine($"  {pm.Identifier}  offset=0x{pm.Offset:X}  length={pm.Length}");
 }
 ```
 
-## API
+## Handling compile errors
 
-### `Compiler`
-
-| Method | Description |
-|---|---|
-| `AddRuleFile(string path)` | Compile a `.yar` file; auto-registers its directory for `include` resolution. Works for both plain rule files and index files. |
-| `AddRule(string source)` | Compile YARA source from a string. |
-| `AddIncludeDir(string dir)` | Add an extra include search directory. |
-| `NewNamespace(string name)` | Subsequent rules go into this namespace. |
-| `DefineGlobal<T>(string id, T value)` | Define a global variable (`bool`, `int`, `double`, `string`). |
-| `IgnoreModule(string name)` | Silently ignore an unknown module. |
-| `BanModule(string name, ...)` | Reject rules that import a module. |
-| `Build()` | Returns `CompileResult` with `Rules`, `Errors`, and `Warnings`. |
-
-### `Scanner`
-
-| Method | Description |
-|---|---|
-| `Scan(string filePath)` | Scan a file by path. |
-| `Scan(byte[] data)` | Scan a byte array. |
-| `ScanInBlocks(string filePath, int blockSize)` | Stream-scan a large file in blocks. |
-| `SetTimeout(ulong seconds)` | Abort scan after N seconds. |
-| `SetGlobal(string id, T value)` | Override a global variable for this scanner. |
-| `GetSlowestRules(long max)` | Return profiling data for the slowest rules. |
-
-### `MatchLoadOptions`
-
-Controls what data is populated in each `RuleMatch`. Use the minimum needed to reduce allocations.
+`AddRuleFile` and `AddRule` do not throw on syntax errors. Errors accumulate and are returned
+in `CompileResult.Errors` after `Build()`. Rules from other files that compiled successfully
+are still available in `CompileResult.Rules`.
 
 ```csharp
-[Flags]
-public enum MatchLoadOptions
-{
-    None       = 0,
-    Metadata   = 1,
-    Tags       = 2,
-    Patterns   = 4,   // includes Offset + Length per match
-    Namespace  = 8,
-    Identifier = 16,
-    All        = Metadata | Tags | Patterns | Namespace | Identifier,
-}
+foreach (string path in ruleFiles)
+    compiler.AddRuleFile(path);   // keeps going even if a file has errors
+
+CompileResult result = compiler.Build();
+
+foreach (CompileError err in result.Errors)
+    logger.Warn($"[{err.Code}] {err.Title}");
+
+if (result.Rules.Count > 0)
+    ScanWith(result.Rules);
 ```
 
-### `CompileFlags`
+## Lifecycle
+
+`Compiler` is single-use — `Build()` consumes it. Dispose all three objects when done:
 
 ```csharp
-[Flags]
-public enum CompileFlags : uint
-{
-    None                        = 0,
-    ColorizeErrors              = 1,
-    RelaxedReSyntax             = 2,
-    ErrorOnSlowPattern          = 4,
-    ErrorOnSlowLoop             = 8,
-    EnableConditionOptimization = 16,
-    DisableIncludes             = 32,
-}
+using var compiler = new Compiler();
+// ... add rules ...
+CompileResult result = compiler.Build();
+
+using var rules   = result.Rules;
+using var scanner = new Scanner(rules, MatchLoadOptions.Identifier | MatchLoadOptions.Patterns);
+// ... scan ...
 ```
+
+`Rules` must remain alive for the entire lifetime of any `Scanner` created from it.
+
+## Thread safety
+
+`Scanner` is not thread-safe. For parallel scanning, create one `Scanner` per thread.
+Multiple scanners can share the same `Rules` instance safely.

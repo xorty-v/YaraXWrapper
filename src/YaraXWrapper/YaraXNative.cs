@@ -76,17 +76,14 @@ internal struct YRX_METADATA
     public YRX_METADATA_VALUE value;
 }
 
-// Allocates a null-terminated UTF-8 byte sequence on the unmanaged heap.
-// The default [DllImport] CharSet.Ansi marshaling converts .NET strings through the
-// system ANSI code page before passing to native code, producing non-UTF-8 bytes for
-// characters above ASCII (e.g. U+2019 → 0x92 in Windows-1252). The Rust C API
-// validates all const char* arguments as UTF-8 and rejects ANSI-encoded bytes.
-// Use this class with `using var` to ensure the memory is freed after the call.
+// Manual UTF-8 encoding: [DllImport] CharSet.Ansi marshals through the system ANSI code
+// page, which breaks non-ASCII input. The YARA-X C API requires valid UTF-8 on all string
+// arguments and will reject ANSI-encoded bytes.
 internal sealed class Utf8NativeStr : IDisposable
 {
     private IntPtr _ptr;
 
-    internal Utf8NativeStr(string s)
+    internal Utf8NativeStr(string? s)
     {
         byte[] bytes = Encoding.UTF8.GetBytes(s ?? string.Empty);
         _ptr = Marshal.AllocHGlobal(bytes.Length + 1);
@@ -289,7 +286,8 @@ internal static class YaraXNative
         IntPtr scanner, IntPtr name, byte[] data, long length);
 
     [DllImport("yara_x_capi", CallingConvention = CallingConvention.Cdecl)]
-    internal static extern YRX_RESULT yrx_scanner_set_module_data(IntPtr scanner, IntPtr name, byte[] data, long length);
+    internal static extern YRX_RESULT
+        yrx_scanner_set_module_data(IntPtr scanner, IntPtr name, byte[] data, long length);
 
     [DllImport("yara_x_capi", CallingConvention = CallingConvention.Cdecl)]
     internal static extern YRX_RESULT yrx_scanner_set_global_str(IntPtr scanner, IntPtr identifier, IntPtr value);
