@@ -38,7 +38,8 @@ public sealed class Compiler : IDisposable
 
         string source = File.ReadAllText(fullPath, Encoding.UTF8);
         YRX_RESULT result = YaraXNative.yrx_compiler_add_source_with_origin(_compiler, source, fullPath);
-        if (result != YRX_RESULT.YRX_SUCCESS)
+
+        if (result != YRX_RESULT.YRX_SUCCESS && result != YRX_RESULT.YRX_SYNTAX_ERROR)
         {
             throw new YrxException($"AddRuleFile failed for '{fullPath}': {result}");
         }
@@ -49,9 +50,10 @@ public sealed class Compiler : IDisposable
         if (source == null) throw new ArgumentNullException(nameof(source));
 
         YRX_RESULT result = YaraXNative.yrx_compiler_add_source(_compiler, source);
-        if (result != YRX_RESULT.YRX_SUCCESS)
+
+        if (result != YRX_RESULT.YRX_SUCCESS && result != YRX_RESULT.YRX_SYNTAX_ERROR)
         {
-            throw new YrxException($"AddSource failed: {result}");
+            throw new YrxException($"AddRule failed: {result}");
         }
     }
 
@@ -114,9 +116,8 @@ public sealed class Compiler : IDisposable
         YrxError[] warnings = ReadDiagnosticsJson(isErrors: false);
 
         IntPtr rulesPtr = YaraXNative.yrx_compiler_build(_compiler);
-        var rules = new Rules(rulesPtr);
 
-        return new CompileResult(rules, errors, warnings);
+        return new CompileResult(new Rules(rulesPtr), errors, warnings);
     }
 
     public void Dispose()
@@ -132,14 +133,13 @@ public sealed class Compiler : IDisposable
 
     private YrxError[] ReadDiagnosticsJson(bool isErrors)
     {
-        IntPtr bufferPtr;
-        if (isErrors)
+        YRX_RESULT callResult = isErrors
+            ? YaraXNative.yrx_compiler_errors_json(_compiler, out IntPtr bufferPtr)
+            : YaraXNative.yrx_compiler_warnings_json(_compiler, out bufferPtr);
+
+        if (callResult != YRX_RESULT.YRX_SUCCESS)
         {
-            YaraXNative.yrx_compiler_errors_json(_compiler, out bufferPtr);
-        }
-        else
-        {
-            YaraXNative.yrx_compiler_warnings_json(_compiler, out bufferPtr);
+            return Array.Empty<YrxError>();
         }
 
         YRX_BUFFER buffer = Marshal.PtrToStructure<YRX_BUFFER>(bufferPtr);
