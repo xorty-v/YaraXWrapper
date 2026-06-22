@@ -19,15 +19,6 @@ public sealed class Compiler : IDisposable
 {
     private IntPtr _compiler = IntPtr.Zero;
 
-    static Compiler()
-    {
-        if (!Environment.Is64BitProcess)
-            throw new PlatformNotSupportedException(
-                "YaraXWrapper requires a 64-bit process. " +
-                "Set <PlatformTarget>x64</PlatformTarget> in the consuming project, " +
-                "or uncheck 'Prefer 32-bit' in project properties.");
-    }
-
     public Compiler(CompileFlags flags = CompileFlags.None)
     {
         YRX_RESULT result = YaraXNative.yrx_compiler_create((uint)flags, out _compiler);

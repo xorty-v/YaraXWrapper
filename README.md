@@ -2,18 +2,6 @@
 
 .NET Standard 2.0 wrapper for the [YARA-X](https://github.com/VirusTotal/yara-x) C API (bundled: `yara_x_capi` 1.18.0).
 
-## Platform
-
-**Windows x64 only.** The package includes a prebuilt `yara_x_capi.dll` for `win-x64`.
-
-The consuming process must run as 64-bit. In the consuming project set:
-
-```xml
-<PlatformTarget>x64</PlatformTarget>
-```
-
-Running in a 32-bit process throws `PlatformNotSupportedException` on first use.
-
 ## Install
 
 ```
