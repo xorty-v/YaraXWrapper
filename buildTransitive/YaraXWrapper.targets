@@ -1,0 +1,9 @@
+<Project>
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)..\runtimes\win-x64\native\yara_x_capi.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>yara_x_capi.dll</Link>
+      <Visible>false</Visible>
+    </None>
+  </ItemGroup>
+</Project>
