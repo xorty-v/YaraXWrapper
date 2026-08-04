@@ -172,6 +172,8 @@ public sealed class ScannerIntegrationTests : IDisposable
                             """;
 
         string yarPath = WriteTextFile("rule.yar", rule);
+        string matchingPath = WriteBinaryFile("matching.bin", "some evil data"u8.ToArray());
+        string cleanPath = WriteBinaryFile("clean.bin", "clean data here"u8.ToArray());
 
         using var compiler = new Compiler();
         compiler.AddRuleFile(yarPath);
@@ -182,10 +184,10 @@ public sealed class ScannerIntegrationTests : IDisposable
         using var scanner = new Scanner(rules, MatchLoadOptions.Identifier);
 
         // Act & Assert — first scan matches, second scan must not inherit those results
-        var firstResults = scanner.Scan("some evil data"u8.ToArray());
+        var firstResults = scanner.Scan(matchingPath);
         Assert.Single(firstResults);
 
-        var secondResults = scanner.Scan("clean data here"u8.ToArray());
+        var secondResults = scanner.Scan(cleanPath);
         Assert.Empty(secondResults);
     }
 

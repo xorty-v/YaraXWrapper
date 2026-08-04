@@ -24,7 +24,7 @@ public sealed class Compiler : IDisposable
         YRX_RESULT result = YaraXNative.yrx_compiler_create((uint)flags, out _compiler);
         if (result != YRX_RESULT.YRX_SUCCESS)
         {
-            throw new YaraXException($"Failed to create compiler: {result}");
+            throw YaraXException.FromResult("Failed to create compiler", result);
         }
     }
 
@@ -52,8 +52,8 @@ public sealed class Compiler : IDisposable
         YRX_RESULT includeResult = YaraXNative.yrx_compiler_add_include_dir(_compiler, dir);
         if (includeResult != YRX_RESULT.YRX_SUCCESS)
         {
-            throw new YaraXException(
-                $"AddRuleFile: failed to register include directory '{directory}': {includeResult}");
+            throw YaraXException.FromResult(
+                $"AddRuleFile: failed to register include directory '{directory}'", includeResult);
         }
 
         string source = File.ReadAllText(fullPath, Encoding.UTF8);
@@ -63,58 +63,7 @@ public sealed class Compiler : IDisposable
 
         if (result != YRX_RESULT.YRX_SUCCESS && result != YRX_RESULT.YRX_SYNTAX_ERROR)
         {
-            throw new YaraXException($"AddRuleFile failed for '{fullPath}': {result}");
-        }
-    }
-
-    /// <summary>
-    /// Compiles YARA-X rules from a source string.
-    /// Syntax errors are accumulated; they do not throw.
-    /// </summary>
-    public void AddRule(string source)
-    {
-        if (source == null) throw new ArgumentNullException(nameof(source));
-
-        using var src = new Utf8NativeStr(source);
-        YRX_RESULT result = YaraXNative.yrx_compiler_add_source(_compiler, src);
-
-        if (result != YRX_RESULT.YRX_SUCCESS && result != YRX_RESULT.YRX_SYNTAX_ERROR)
-        {
-            throw new YaraXException($"AddRule failed: {result}");
-        }
-    }
-
-    /// <summary>Adds a directory to the include search path for resolving <c>include</c> directives.</summary>
-    public void AddIncludeDir(string directory)
-    {
-        if (directory == null) throw new ArgumentNullException(nameof(directory));
-        using var dir = new Utf8NativeStr(directory);
-        YRX_RESULT result = YaraXNative.yrx_compiler_add_include_dir(_compiler, dir);
-        if (result != YRX_RESULT.YRX_SUCCESS)
-        {
-            throw new YaraXException($"AddIncludeDir failed: {result}");
-        }
-    }
-
-    /// <summary>Instructs the compiler to silently ignore rules that import an unknown module.</summary>
-    public void IgnoreModule(string module)
-    {
-        using var mod = new Utf8NativeStr(module);
-        YRX_RESULT result = YaraXNative.yrx_compiler_ignore_module(_compiler, mod);
-        if (result != YRX_RESULT.YRX_SUCCESS)
-        {
-            throw new YaraXException($"IgnoreModule failed: {result}");
-        }
-    }
-
-    /// <summary>Switches subsequent rule sources into a new namespace.</summary>
-    public void SetNamespace(string name)
-    {
-        using var ns = new Utf8NativeStr(name);
-        YRX_RESULT result = YaraXNative.yrx_compiler_new_namespace(_compiler, ns);
-        if (result != YRX_RESULT.YRX_SUCCESS)
-        {
-            throw new YaraXException($"SetNamespace failed: {result}");
+            throw YaraXException.FromResult($"AddRuleFile failed for '{fullPath}'", result);
         }
     }
 

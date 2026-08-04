@@ -9,12 +9,7 @@ namespace YaraXWrapper;
 public enum CompileFlags : uint
 {
     None = 0,
-    ColorizeErrors = 1,
     RelaxedReSyntax = 2,
-    ErrorOnSlowPattern = 4,
-    ErrorOnSlowLoop = 8,
-    EnableConditionOptimization = 16,
-    DisableIncludes = 32,
 }
 
 /// <summary>
@@ -29,18 +24,26 @@ public enum CompileFlags : uint
 public enum MatchLoadOptions
 {
     None = 0,
-    Metadata = 1,
-    Tags = 2,
     Patterns = 4,
-    Namespace = 8,
     Identifier = 16,
-    All = Metadata | Tags | Patterns | Namespace | Identifier,
 }
 
 /// <summary>Thrown when a native YARA-X operation fails with an unexpected error code.</summary>
 public sealed class YaraXException : Exception
 {
     public YaraXException(string message) : base(message) { }
+
+    /// <summary>
+    /// Builds a <see cref="YaraXException"/> for a failed native call, appending the
+    /// detailed message from <c>yrx_last_error()</c> when the C API provided one.
+    /// </summary>
+    internal static YaraXException FromResult(string context, YRX_RESULT result)
+    {
+        string? detail = YaraXNative.GetLastError();
+        return string.IsNullOrEmpty(detail)
+            ? new YaraXException($"{context}: {result}")
+            : new YaraXException($"{context}: {result} — {detail}");
+    }
 }
 
 /// <summary>A compile-time diagnostic (error or warning) produced by the YARA-X compiler.</summary>
@@ -60,22 +63,6 @@ public sealed class CompileError
 
     [JsonExtensionData]
     public Dictionary<string, object?>? ExtensionData { get; set; }
-}
-
-internal sealed class SlowRuleInfo
-{
-    public string Namespace { get; }
-    public string Rule { get; }
-    public double MatchTime { get; }
-    public double EvalTime { get; }
-
-    internal SlowRuleInfo(string ns, string rule, double matchTime, double evalTime)
-    {
-        Namespace = ns;
-        Rule = rule;
-        MatchTime = matchTime;
-        EvalTime = evalTime;
-    }
 }
 
 /// <summary>

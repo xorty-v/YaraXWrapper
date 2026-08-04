@@ -32,9 +32,6 @@ public sealed class PatternMatch
 public sealed class RuleMatch
 {
     public string Identifier { get; }
-    public string Namespace { get; }
-    public IReadOnlyList<string> Tags { get; }
-    public IReadOnlyDictionary<string, object> Metadata { get; }
 
     /// <summary>
     /// Pattern matches for this rule.
@@ -42,17 +39,9 @@ public sealed class RuleMatch
     /// </summary>
     public IReadOnlyList<PatternMatch> Patterns { get; }
 
-    internal RuleMatch(
-        string identifier,
-        string ns,
-        IReadOnlyList<string> tags,
-        IReadOnlyDictionary<string, object> metadata,
-        IReadOnlyList<PatternMatch> patterns)
+    internal RuleMatch(string identifier, IReadOnlyList<PatternMatch> patterns)
     {
         Identifier = identifier;
-        Namespace = ns;
-        Tags = tags;
-        Metadata = metadata;
         Patterns = patterns;
     }
 }
