@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.MemoryMappedFiles;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -55,23 +56,48 @@ public sealed class Scanner : IDisposable
         }
     }
 
-    /// <summary>Scans a file and returns all matching rules.</summary>
-    public IReadOnlyList<RuleMatch> Scan(string filePath)
+    /// <summary>
+    /// Scans a file via our own read-only (FILE_MAP_READ) memory mapping instead of letting the
+    /// native library map the file itself. YARA-X's own file mapping is copy-on-write
+    /// (FILE_MAP_COPY), which requires Windows to reserve pagefile-backed commit for the entire
+    /// view up front; a plain read-only mapping does not, since its pages are backed directly by
+    /// the file. This avoids the transient ERROR_COMMITMENT_LIMIT ("paging file too small") that
+    /// <see cref="Scan(string)"/> can hit under memory pressure, for a file of any size.
+    /// </summary>
+    public unsafe IReadOnlyList<RuleMatch> ScanMapped(string filePath)
     {
-        if (!File.Exists(filePath))
+        FileInfo info = new(filePath);
+        if (!info.Exists)
         {
             throw new YaraXException($"File does not exist: {filePath}");
         }
 
-        _currentResults = new List<RuleMatch>();
-        using var path = new Utf8NativeStr(filePath);
-        YRX_RESULT result = YaraXNative.yrx_scanner_scan_file(_scanner, path);
-        if (result != YRX_RESULT.YRX_SUCCESS)
+        if (info.Length == 0)
         {
-            throw YaraXException.FromResult($"Scan failed for '{filePath}'", result);
+            return _currentResults = new List<RuleMatch>();
         }
 
-        return _currentResults;
+        using MemoryMappedFile mmf = MemoryMappedFile.CreateFromFile(
+            filePath, FileMode.Open, mapName: null, capacity: 0, MemoryMappedFileAccess.Read);
+        using MemoryMappedViewAccessor accessor = mmf.CreateViewAccessor(0, 0, MemoryMappedFileAccess.Read);
+
+        byte* ptr = null;
+        accessor.SafeMemoryMappedViewHandle.AcquirePointer(ref ptr);
+        try
+        {
+            _currentResults = new List<RuleMatch>();
+            YRX_RESULT result = YaraXNative.yrx_scanner_scan_ptr(_scanner, (IntPtr)ptr, info.Length);
+            if (result != YRX_RESULT.YRX_SUCCESS)
+            {
+                throw YaraXException.FromResult($"Scan failed for '{filePath}' (mapped)", result);
+            }
+
+            return _currentResults;
+        }
+        finally
+        {
+            accessor.SafeMemoryMappedViewHandle.ReleasePointer();
+        }
     }
 
     public void Dispose()

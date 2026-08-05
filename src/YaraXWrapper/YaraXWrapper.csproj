@@ -5,9 +5,10 @@
         <LangVersion>12.0</LangVersion>
         <Nullable>enable</Nullable>
         <ImplicitUsings>disable</ImplicitUsings>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <PackageId>YaraXWrapper</PackageId>
         <Title>YaraXWrapper</Title>
-        <Version>1.0.3</Version>
+        <Version>1.0.4</Version>
         <Authors>x1m</Authors>
         <Description>.NET Standard 2.0 wrapper for the YARA-X C API. Bundles yara_x_capi.dll $(YaraXCapiVersion) (win-x64 only).</Description>
         <PackageProjectUrl>https://github.com/xorty-v/YaraXWrapper</PackageProjectUrl>

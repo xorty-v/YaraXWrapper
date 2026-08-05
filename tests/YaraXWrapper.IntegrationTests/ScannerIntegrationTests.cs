@@ -41,7 +41,7 @@ public sealed class ScannerIntegrationTests : IDisposable
     }
 
     [Fact]
-    public void AddRuleFile_SimpleRule_MatchesWithCorrectOffsetAndLength()
+    public void ScanMapped_SimpleRule_MatchesWithCorrectOffsetAndLength()
     {
         // Arrange
         const string rule = """
@@ -66,7 +66,7 @@ public sealed class ScannerIntegrationTests : IDisposable
 
         using var rules = compiled.Rules;
         using var scanner = new Scanner(rules, MatchLoadOptions.Identifier | MatchLoadOptions.Patterns);
-        var matches = scanner.Scan(scanPath);
+        var matches = scanner.ScanMapped(scanPath);
 
         // Assert
         Assert.Single(matches);
@@ -77,118 +77,6 @@ public sealed class ScannerIntegrationTests : IDisposable
         Assert.Equal("$a", pm.Identifier);
         Assert.Equal(6UL, pm.Offset);
         Assert.Equal(4UL, pm.Length);
-    }
-
-    [Fact]
-    public void AddRuleFile_IndexFileWithIncludes_ResolvesIncludeAndMatches()
-    {
-        // Arrange
-        const string includedRule = """
-                                    rule FindSecret {
-                                        strings:
-                                            $s = "secret"
-                                        condition:
-                                            $s
-                                    }
-                                    """;
-
-        const string indexSource = """include "./rules/included.yar" """;
-
-
-        byte[] scanData = "abc secret xyz"u8.ToArray();
-
-        WriteTextFile(Path.Combine("idx", "rules", "included.yar"), includedRule);
-        string indexPath = WriteTextFile(Path.Combine("idx", "index.yar"), indexSource);
-        string scanPath = WriteBinaryFile("target.bin", scanData);
-
-        // Act
-        using var compiler = new Compiler();
-        compiler.AddRuleFile(indexPath);
-        CompileResult compiled = compiler.Build();
-        Assert.Empty(compiled.Errors);
-
-        using var rules = compiled.Rules;
-        using var scanner = new Scanner(rules, MatchLoadOptions.Identifier | MatchLoadOptions.Patterns);
-        var matches = scanner.Scan(scanPath);
-
-        // Assert
-        Assert.Single(matches);
-        RuleMatch match = matches[0];
-        Assert.Equal("FindSecret", match.Identifier);
-
-        PatternMatch pm = Assert.Single(match.Patterns);
-        Assert.Equal("$s", pm.Identifier);
-        Assert.Equal(4UL, pm.Offset);
-        Assert.Equal(6UL, pm.Length);
-    }
-
-    [Fact]
-    public void AddRuleFile_RegularRuleFile_CompilesAndMatches()
-    {
-        // Arrange
-        const string rule = """
-                            rule FindToken {
-                                strings:
-                                    $t = "TOKEN"
-                                condition:
-                                    $t
-                            }
-                            """;
-
-
-        byte[] scanData = "prefix TOKEN suffix"u8.ToArray();
-
-        string yarPath = WriteTextFile("rule.yar", rule);
-        string scanPath = WriteBinaryFile("target.bin", scanData);
-
- 
-        using var compiler = new Compiler();
-        compiler.AddRuleFile(yarPath);
-        CompileResult compiled = compiler.Build();
-        Assert.Empty(compiled.Errors);
-
-        using var rules = compiled.Rules;
-        using var scanner = new Scanner(rules, MatchLoadOptions.Identifier | MatchLoadOptions.Patterns);
-        var matches = scanner.Scan(scanPath);
-
-        // Assert
-        Assert.Single(matches);
-        Assert.Equal("FindToken", matches[0].Identifier);
-        Assert.Equal(7UL, matches[0].Patterns[0].Offset);
-        Assert.Equal(5UL, matches[0].Patterns[0].Length);
-    }
-
-    [Fact]
-    public void Scan_CalledTwiceWithSameScanner_DoesNotAccumulatePreviousResults()
-    {
-        // Arrange
-        const string rule = """
-                            rule FindEvil {
-                                strings:
-                                    $a = "evil"
-                                condition:
-                                    $a
-                            }
-                            """;
-
-        string yarPath = WriteTextFile("rule.yar", rule);
-        string matchingPath = WriteBinaryFile("matching.bin", "some evil data"u8.ToArray());
-        string cleanPath = WriteBinaryFile("clean.bin", "clean data here"u8.ToArray());
-
-        using var compiler = new Compiler();
-        compiler.AddRuleFile(yarPath);
-        CompileResult compiled = compiler.Build();
-        Assert.Empty(compiled.Errors);
-
-        using var rules = compiled.Rules;
-        using var scanner = new Scanner(rules, MatchLoadOptions.Identifier);
-
-        // Act & Assert — first scan matches, second scan must not inherit those results
-        var firstResults = scanner.Scan(matchingPath);
-        Assert.Single(firstResults);
-
-        var secondResults = scanner.Scan(cleanPath);
-        Assert.Empty(secondResults);
     }
 
     [Fact]

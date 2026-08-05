@@ -161,4 +161,10 @@ internal static class YaraXNative
 
     [DllImport("yara_x_capi", CallingConvention = CallingConvention.Cdecl)]
     internal static extern YRX_RESULT yrx_scanner_scan_file(IntPtr scanner, IntPtr path);
+
+    [DllImport("yara_x_capi", CallingConvention = CallingConvention.Cdecl)]
+    internal static extern YRX_RESULT yrx_scanner_scan(IntPtr scanner, byte[] data, long len);
+
+    [DllImport("yara_x_capi", EntryPoint = "yrx_scanner_scan", CallingConvention = CallingConvention.Cdecl)]
+    internal static extern YRX_RESULT yrx_scanner_scan_ptr(IntPtr scanner, IntPtr data, long len);
 }
